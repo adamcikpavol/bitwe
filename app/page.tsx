@@ -204,14 +204,24 @@ export default function Home() {
             Be In Touch With English
           </p>
 
-          <div className="flex justify-center">
+          <div className="flex flex-wrap justify-center gap-4">
             <label className="bg-blue-700 hover:bg-blue-800 text-white px-8 py-4 rounded-xl cursor-pointer font-semibold">
-              📷 Odfotiť / Nahrať
+              📷 Odfotiť
 
               <input
                 type="file"
                 accept="image/*"
                 capture="environment"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </label>
+            <label className="bg-blue-700 hover:bg-blue-800 text-white px-8 py-4 rounded-xl cursor-pointer font-semibold">
+              📁 Nahrať z úložiska
+
+              <input
+                type="file"
+                accept="image/*"
                 className="hidden"
                 onChange={handleFileChange}
               />
