@@ -4,12 +4,24 @@ import { useEffect, useState } from "react";
 import Tesseract from "tesseract.js";
 import { Volume2, Star } from "lucide-react";
 
+type TranslationResponse = {
+  responseStatus?: number;
+  responseDetails?: string;
+  responseData?: {
+    translatedText?: string;
+  };
+};
+
 export default function Home() {
   const [image, setImage] = useState<string | null>(null);
   const [ocrText, setOcrText] = useState("");
   const [loading, setLoading] = useState(false);
   const [words, setWords] = useState<string[]>([]);
   const [savedWords, setSavedWords] = useState<string[]>([]);
+  const [translations, setTranslations] = useState<Record<string, string>>({});
+  const [translationErrors, setTranslationErrors] = useState<
+    Record<string, string>
+  >({});
 
   useEffect(() => {
     const stored = localStorage.getItem("bitwe_dictionary");
@@ -18,6 +30,83 @@ export default function Home() {
       setSavedWords(JSON.parse(stored));
     }
   }, []);
+
+  useEffect(() => {
+    const wordsToTranslate = Array.from(new Set([...words, ...savedWords]));
+
+    if (wordsToTranslate.length === 0) return;
+
+    const controller = new AbortController();
+    let cancelled = false;
+
+    const fetchTranslations = async () => {
+      const results = await Promise.all(
+        wordsToTranslate.map(async (word) => {
+          try {
+            const url = new URL("https://api.mymemory.translated.net/get");
+            url.searchParams.set("q", word);
+            url.searchParams.set("langpair", "en|sk");
+
+            const response = await fetch(url, { signal: controller.signal });
+
+            if (!response.ok) {
+              throw new Error(`Translation request failed (${response.status})`);
+            }
+
+            const result = (await response.json()) as TranslationResponse;
+            const translatedText = result.responseData?.translatedText;
+
+            if (
+              result.responseStatus !== 200 ||
+              typeof translatedText !== "string" ||
+              !translatedText.trim()
+            ) {
+              throw new Error(
+                result.responseDetails || "No translation was returned"
+              );
+            }
+
+            return { word, translation: translatedText, error: null };
+          } catch (error) {
+            if (controller.signal.aborted) return null;
+
+            console.error(`Translation failed for "${word}"`, error);
+            return {
+              word,
+              translation: null,
+              error: "Preklad sa nepodarilo načítať.",
+            };
+          }
+        })
+      );
+
+      if (cancelled) return;
+
+      setTranslations((current) => {
+        const updated = { ...current };
+        for (const result of results) {
+          if (result?.translation) updated[result.word] = result.translation;
+        }
+        return updated;
+      });
+
+      setTranslationErrors((current) => {
+        const updated = { ...current };
+        for (const result of results) {
+          if (result?.error) updated[result.word] = result.error;
+          else if (result) delete updated[result.word];
+        }
+        return updated;
+      });
+    };
+
+    void fetchTranslations();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [words, savedWords]);
 
   const saveWord = (word: string) => {
     if (savedWords.includes(word)) return;
@@ -173,10 +262,17 @@ export default function Home() {
                 >
                   <button
                     onClick={() => speakWord(word)}
-                    className="flex items-center gap-2 text-blue-700 font-semibold"
+                    className="flex flex-col items-start text-blue-700 font-semibold"
                   >
-                    <Volume2 size={18} />
-                    {word}
+                    <span className="flex items-center gap-2">
+                      <Volume2 size={18} />
+                      {word}
+                    </span>
+                    <span className="pl-7 text-sm font-normal text-slate-600">
+                      {translations[word] ??
+                        translationErrors[word] ??
+                        "Prekladám..."}
+                    </span>
                   </button>
 
                   <button
@@ -204,7 +300,14 @@ export default function Home() {
                   onClick={() => speakWord(word)}
                   className="bg-yellow-50 border border-yellow-300 rounded-xl p-3 text-left font-semibold text-slate-900"
                 >
-                  🔊 {word}
+                  <span className="flex flex-col items-start">
+                    <span>🔊 {word}</span>
+                    <span className="pl-7 text-sm font-normal text-slate-600">
+                      {translations[word] ??
+                        translationErrors[word] ??
+                        "Prekladám..."}
+                    </span>
+                  </span>
                 </button>
               ))}
 
