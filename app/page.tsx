@@ -103,7 +103,7 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-100 p-6">
+    <main className="min-h-screen bg-sky-400 p-6">
       <div className="max-w-7xl mx-auto">
         <div className="bg-white rounded-3xl shadow-xl p-8">
 
